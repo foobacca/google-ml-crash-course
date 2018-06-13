@@ -48,7 +48,6 @@ def create_dataset():
         "https://storage.googleapis.com/mledu-datasets/california_housing_train.csv",
         sep=","
     )
-
     california_housing_dataframe = california_housing_dataframe.reindex(
         np.random.permutation(california_housing_dataframe.index)
     )
@@ -66,8 +65,6 @@ def get_linear_regressor(learning_rate, feature_name):
         feature_columns=feature_columns,
         optimizer=my_optimizer,
     )
-
-
 
 
 class Plotter(object):
@@ -171,10 +168,10 @@ def train_model(learning_rate, steps, batch_size, input_feature='total_rooms'):
     print('Final RMSE on training data: {:0.2f}'.format(root_mean_squared_error))
 
 
-# main()
-train_model(
-    learning_rate=0.00003,
-    steps=1000,
-    batch_size=5,
-    input_feature='population'
-)
+if __name__ == '__main__':
+    train_model(
+        learning_rate=0.00003,
+        steps=1000,
+        batch_size=5,
+        input_feature='population'
+    )
