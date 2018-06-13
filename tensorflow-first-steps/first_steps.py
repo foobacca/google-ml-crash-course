@@ -1,9 +1,8 @@
 import math
-from collections import namedtuple
 
 from IPython import display
 from matplotlib import cm
-from matplotlib import gridspec
+# from matplotlib import gridspec
 from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
@@ -14,9 +13,6 @@ from tensorflow.python.data import Dataset
 tf.logging.set_verbosity(tf.logging.ERROR)
 pd.options.display.max_rows = 10
 pd.options.display.float_format = '{:.1f}'.format
-
-
-MinMax = namedtuple('MinMax', ['min', 'max'])
 
 
 def my_input_fn(features, targets, batch_size=1, shuffle=True, num_epochs=None):
@@ -60,6 +56,16 @@ def create_dataset():
     # print(california_housing_dataframe)
     # print(california_housing_dataframe.describe())
     return california_housing_dataframe
+
+
+def get_linear_regressor(learning_rate, feature_name):
+    feature_columns = [tf.feature_column.numeric_column(feature_name)]
+    my_optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
+    my_optimizer = tf.contrib.estimator.clip_gradients_by_norm(my_optimizer, 5.0)
+    return tf.estimator.LinearRegressor(
+        feature_columns=feature_columns,
+        optimizer=my_optimizer,
+    )
 
 
 def dataset_stats(california_housing_dataframe):
@@ -114,7 +120,7 @@ def initial_main():
         optimizer=my_optimizer,
     )
 
-    _ = linear_regressor.train(
+    linear_regressor.train(
         input_fn=lambda: my_input_fn(my_feature, targets),
         steps=100
     )
@@ -144,12 +150,19 @@ class Plotter(object):
         plt.scatter(self.sample[feature], self.sample[label])
         self.colours = [cm.coolwarm(x) for x in np.linspace(-1, 1, periods)]
 
-    def add_period_line(self, weight, bias, period):
+    def weight_bias(self, linear_regressor):
+        weights_variable = 'linear/linear_model/{}/weights'.format(self.feature)
+        weight = linear_regressor.get_variable_value(weights_variable)[0]
+        bias = linear_regressor.get_variable_value('linear/linear_model/bias_weights')
+        return weight, bias
+
+    def add_period_line(self, linear_regressor, period):
+        weight, bias = self.weight_bias(linear_regressor)
         initial_y_extents = np.array([0, self.sample[self.label].max()])
         x_extents = (initial_y_extents - bias) / weight
         x_extents = np.maximum(
-            np.minimum(x_extents, self.sample[feature].max()),
-            self.sample[feature].min()
+            np.minimum(x_extents, self.sample[self.feature].max()),
+            self.sample[self.feature].min()
         )
         y_extents = weight * x_extents + bias
         plt.plot(x_extents, y_extents, color=self.colours[period])
@@ -167,23 +180,15 @@ class Plotter(object):
         plt.show()
 
 
-def calc_rmse(predictions, targets):
+def calc_rmse(np_predictions, targets):
     # convert to NumPy so we can calc error metrics
-    predictions = np.array([item['predictions'][0] for item in predictions])
-    return math.sqrt(metrics.mean_squared_error(predictions, targets))
+    return math.sqrt(metrics.mean_squared_error(np_predictions, targets))
 
 
-def weight_bias(linear_regressor, input_feature):
-    weights_variable = 'linear/linear_model/{}/weights'.format(input_feature)
-    weight = linear_regressor.get_variable_value(weights_variable)[0]
-    bias = linear_regressor.get_variable_value('linear/linear_model/bias_weights')
-    return weight, bias
-
-
-def display_callibration_data(predictions, targets):
+def display_callibration_data(np_predictions, targets):
     # table with callibration data
     callibration_data = pd.DataFrame()
-    callibration_data['predictions'] = pd.Series(predictions)
+    callibration_data['predictions'] = pd.Series(np_predictions)
     callibration_data['targets'] = pd.Series(targets)
     display.display(callibration_data.describe())
 
@@ -203,44 +208,32 @@ def train_model(learning_rate, steps, batch_size, input_feature='total_rooms'):
     steps_per_period = steps // periods
 
     california_housing_dataframe = create_dataset()
-    my_feature = input_feature
-    my_feature_data = california_housing_dataframe[[my_feature]]
+    feature_data = california_housing_dataframe[[input_feature]]
     my_label = "median_house_value"
     targets = california_housing_dataframe[my_label]
 
-    feature_columns = [tf.feature_column.numeric_column(my_feature)]
-
-    train_input_fn = lambda: my_input_fn(my_feature_data, targets, batch_size=batch_size)
-    predict_input_fn = lambda: my_input_fn(my_feature_data, targets, num_epochs=1, shuffle=False)
-
-    my_optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
-    my_optimizer = tf.contrib.estimator.clip_gradients_by_norm(my_optimizer, 5.0)
-    linear_regressor = tf.estimator.LinearRegressor(
-        feature_columns=feature_columns,
-        optimizer=my_optimizer,
-    )
+    train_input_fn = lambda: my_input_fn(feature_data, targets, batch_size=batch_size)
+    predict_input_fn = lambda: my_input_fn(feature_data, targets, num_epochs=1, shuffle=False)
+    linear_regressor = get_linear_regressor(learning_rate, input_feature)
 
     sample = california_housing_dataframe.sample(n=300)
-    plotter = Plotter(my_label, my_feature, periods, sample)
+    plotter = Plotter(my_label, input_feature, periods, sample)
 
     print('Training model')
-    print('RMSE on training data')
     root_mean_squared_errors = []
     for period in range(periods):
         linear_regressor.train(input_fn=train_input_fn, steps=steps_per_period)
         predictions = linear_regressor.predict(input_fn=predict_input_fn)
-        root_mean_squared_error = calc_rmse(predictions, targets)
+        np_predictions = np.array([item['predictions'][0] for item in predictions])
+        root_mean_squared_error = calc_rmse(np_predictions, targets)
         print("  period {:02d} : {:0.2f}".format(period, root_mean_squared_error))
         root_mean_squared_errors.append(root_mean_squared_error)
-
-        # track weight/bias over time
-        weight, bias = weight_bias(linear_regressor, input_feature)
-        plotter.add_period_line(weight, bias, period)
+        plotter.add_period_line(linear_regressor, period)
 
     print('Model training finished')
     plotter.add_loss_metrics_plot(root_mean_squared_errors)
     plotter.show()
-    display_callibration_data(predictions, targets)
+    display_callibration_data(np_predictions, targets)
     print('Final RMSE on training data: {:0.2f}'.format(root_mean_squared_error))
 
 
