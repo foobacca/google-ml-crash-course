@@ -43,7 +43,7 @@ def my_input_fn(features, targets, batch_size=1, shuffle=True, num_epochs=None):
     return features, labels
 
 
-def create_dataset():
+def create_dataset(clip_rooms=False):
     dataframe = pd.read_csv(
         "https://storage.googleapis.com/mledu-datasets/california_housing_train.csv",
         sep=","
@@ -51,6 +51,8 @@ def create_dataset():
     dataframe = dataframe.reindex(np.random.permutation(dataframe.index))
     dataframe["median_house_value"] /= 1000.0
     dataframe["rooms_per_person"] = dataframe["total_rooms"] / dataframe["population"]
+    if clip_rooms:
+        dataframe["rooms_per_person"] = (dataframe['rooms_per_person']).apply(lambda x: min(x, 5))
     # print(dataframe)
     # print(dataframe.describe())
     return dataframe
@@ -137,7 +139,7 @@ def train_model(learning_rate, steps, batch_size, input_feature):
     periods = 10
     steps_per_period = steps // periods
 
-    california_housing_dataframe = create_dataset()
+    california_housing_dataframe = create_dataset(clip_rooms=True)
     feature_data = california_housing_dataframe[[input_feature]].astype('float32')
     my_label = "median_house_value"
     targets = california_housing_dataframe[my_label].astype('float32')
@@ -169,6 +171,16 @@ def train_model(learning_rate, steps, batch_size, input_feature):
     return callibration_data
 
 
+def plot_rooms_per_person():
+    california_housing_dataframe = create_dataset(clip_rooms=True)
+    # sample = california_housing_dataframe.sample(n=3000)
+    # many_rooms = california_housing_dataframe.query('rooms_per_person>5')
+    # many_rooms.describe()
+    # plt.scatter(many_rooms['rooms_per_person'], many_rooms['median_house_value'])
+    california_housing_dataframe['rooms_per_person'].hist()
+    plt.show()
+
+
 if __name__ == '__main__':
     train_model(
         learning_rate=0.1,
@@ -176,3 +188,4 @@ if __name__ == '__main__':
         batch_size=1,
         input_feature='rooms_per_person'
     )
+    # plot_rooms_per_person()
