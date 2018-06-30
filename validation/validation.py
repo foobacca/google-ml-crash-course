@@ -1,7 +1,7 @@
 import math
 
-from IPython import display
-from matplotlib import cm
+# from IPython import display
+# from matplotlib import cm
 # from matplotlib import gridspec
 from matplotlib import pyplot as plt
 import numpy as np
@@ -162,9 +162,15 @@ def train_model(
 
     linear_regressor = get_linear_regressor(learning_rate, training_examples)
 
-    train_input_fn = lambda: my_input_fn(training_examples, training_targets, batch_size=batch_size)
-    predict_train_input_fn = lambda: my_input_fn(training_examples, training_targets, num_epochs=1, shuffle=False)
-    predict_validate_input_fn = lambda: my_input_fn(validation_examples, validation_targets, num_epochs=1, shuffle=False)
+    train_input_fn = lambda: my_input_fn(
+        training_examples, training_targets['median_house_value'], batch_size=batch_size
+    )
+    predict_train_input_fn = lambda: my_input_fn(
+        training_examples, training_targets['median_house_value'], num_epochs=1, shuffle=False
+    )
+    predict_validate_input_fn = lambda: my_input_fn(
+        validation_examples, validation_targets['median_house_value'], num_epochs=1, shuffle=False
+    )
 
     print('Training model')
     training_rmse_list = []
@@ -187,6 +193,22 @@ def train_model(
     print('Model training finished')
     plot_rmse(training_rmse_list, validation_rmse_list)
     return linear_regressor
+
+
+def evaluate_against_test_data(linear_regressor):
+    california_housing_test_data = pd.read_csv(
+        "https://storage.googleapis.com/mledu-datasets/california_housing_test.csv",
+        sep=","
+    )
+    test_examples = preprocess_features(california_housing_test_data)
+    test_targets = preprocess_targets(california_housing_test_data)
+    predict_test_input_fn = lambda: my_input_fn(
+        test_examples, test_targets['median_house_value'], num_epochs=1, shuffle=False
+    )
+    test_predictions = linear_regressor.predict(input_fn=predict_test_input_fn)
+    np_test_predictions = np.array([item['predictions'][0] for item in test_predictions])
+    test_rmse = calc_rmse(np_test_predictions, test_targets)
+    print('Test RMSE is {:0.2f}'.format(test_rmse))
 
 
 def plot_single_lat_long(ax, examples, targets):
@@ -239,16 +261,18 @@ def main():
     # print(validation_examples.describe())
     validation_targets = preprocess_targets(california_housing_dataframe.tail(5000))
     # print(validation_targets.describe())
-    plot_lat_long(validation_examples, validation_targets, training_examples, training_targets)
+    # plot_lat_long(validation_examples, validation_targets, training_examples, training_targets)
     linear_regressor = train_model(
         # TWEAK THESE VALUES TO SEE HOW MUCH YOU CAN IMPROVE THE RMSE
-        learning_rate=0.001,
+        learning_rate=0.00003,
         steps=500,
         batch_size=5,
         training_examples=training_examples,
         training_targets=training_targets,
         validation_examples=validation_examples,
-        validation_targets=validation_targets)
+        validation_targets=validation_targets
+    )
+    evaluate_against_test_data(linear_regressor)
 
 
 if __name__ == '__main__':
