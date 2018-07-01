@@ -73,6 +73,8 @@ class ExampleTargets():
         # Create a synthetic feature.
         synthetic_mapping = {
             'rooms_per_person': self.add_rooms_per_person,
+            'latitude_buckets': self.add_latitude_buckets,
+            'latitude_relative_to_sf': self.add_latitude_relative_to_sf,
         }
         for synthetic in self.synthetics:
             synthetic_mapping[synthetic](california_housing_dataframe, processed_features)
@@ -83,6 +85,22 @@ class ExampleTargets():
             california_housing_dataframe["total_rooms"] /
             california_housing_dataframe["population"]
         )
+
+    def latitude_iter(self):
+        for lower in range(32, 44):
+            upper = lower + 1
+            yield 'latitude_{}_to_{}'.format(lower, upper), lower, upper
+
+    def add_latitude_buckets(self, california_housing_dataframe, processed_features):
+        for name, lower, upper in self.latitude_iter():
+            processed_features[name] = california_housing_dataframe['latitude'].apply(
+                lambda x: 1.0 if x >= lower and x < upper else 0.0
+            )
+
+    def add_latitude_relative_to_sf(self, california_housing_dataframe, processed_features):
+        processed_features["latitude_relative_to_sf"] = (
+            california_housing_dataframe["latitude"] - 38
+        ).abs()
 
     def preprocess_targets(self, california_housing_dataframe):
         """
@@ -225,9 +243,10 @@ def plot_rmse(training_rmse, validation_rmse):
 
 def main():
     california_housing_dataframe = create_dataset()
-    minimal_features = ['median_income', 'latitude']
-    synthetics = ['rooms_per_person']
+    minimal_features = ['median_income']
+    synthetics = ['rooms_per_person', 'latitude_buckets']
     training_data = ExampleTargets(california_housing_dataframe.head(12000), minimal_features, synthetics)
+    print(training_data.examples.describe())
     validation_data = ExampleTargets(california_housing_dataframe.tail(5000), minimal_features, synthetics)
     # correlation_report(training_data)
     train_model(
