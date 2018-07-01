@@ -97,6 +97,11 @@ class ExampleTargets():
             return my_input_fn(self, num_epochs=1, shuffle=False)
         return predict_fn
 
+    def get_prediction_rmse(self, linear_regressor):
+        predictions = linear_regressor.predict(input_fn=self.get_predict_fn())
+        np_predictions = np.array([item['predictions'][0] for item in predictions])
+        return math.sqrt(metrics.mean_squared_error(np_predictions, self.targets))
+
 
 def my_input_fn(features_targets, batch_size=1, shuffle=True, num_epochs=None):
     """
@@ -146,11 +151,6 @@ def get_linear_regressor(learning_rate, training_examples):
     )
 
 
-def calc_rmse(np_predictions, targets):
-    # convert to NumPy so we can calc error metrics
-    return math.sqrt(metrics.mean_squared_error(np_predictions, targets))
-
-
 def train_model(
         learning_rate,
         steps,
@@ -184,24 +184,15 @@ def train_model(
     steps_per_period = steps // periods
 
     linear_regressor = get_linear_regressor(learning_rate, training_data.examples)
-
     train_input_fn = training_data.get_training_fn(batch_size)
-    predict_train_input_fn = training_data.get_predict_fn()
-    predict_validate_input_fn = validation_data.get_predict_fn()
 
     print('Training model')
     training_rmse_list = []
     validation_rmse_list = []
     for period in range(periods):
         linear_regressor.train(input_fn=train_input_fn, steps=steps_per_period)
-
-        train_predictions = linear_regressor.predict(input_fn=predict_train_input_fn)
-        np_train_predictions = np.array([item['predictions'][0] for item in train_predictions])
-        train_rmse = calc_rmse(np_train_predictions, training_data.targets)
-
-        validate_predictions = linear_regressor.predict(input_fn=predict_validate_input_fn)
-        np_validate_predictions = np.array([item['predictions'][0] for item in validate_predictions])
-        validate_rmse = calc_rmse(np_validate_predictions, validation_data.targets)
+        train_rmse = training_data.get_prediction_rmse(linear_regressor)
+        validate_rmse = validation_data.get_prediction_rmse(linear_regressor)
 
         print("  period {:02d} : {:0.2f}".format(period, train_rmse))
         training_rmse_list.append(train_rmse)
@@ -215,10 +206,7 @@ def train_model(
 def evaluate_against_test_data(linear_regressor):
     california_housing_test_data = get_test_dataset()
     test_data = ExampleTargets(california_housing_test_data)
-    predict_test_input_fn = test_data.get_predict_fn()
-    test_predictions = linear_regressor.predict(input_fn=predict_test_input_fn)
-    np_test_predictions = np.array([item['predictions'][0] for item in test_predictions])
-    test_rmse = calc_rmse(np_test_predictions, test_data.targets)
+    test_rmse = test_data.get_prediction_rmse(linear_regressor)
     print('Test RMSE is {:0.2f}'.format(test_rmse))
 
 
