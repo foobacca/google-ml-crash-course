@@ -21,7 +21,7 @@ def my_input_fn(features, targets, batch_size=1, shuffle=True, num_epochs=None):
 
     Args:
         features: pandas DataFrame of features
-        targets: pandas DataFrame of targets
+        targets: pandas Series of targets
         batch_size: size of batches to be passed to the model
         shuffle: whether to shuffle the data.
         num_epochs: Number of epochs for which data should be repeated.  None is
