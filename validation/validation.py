@@ -34,10 +34,10 @@ def get_test_dataset():
     return dataframe
 
 
-class ExampleTargets():
+class FeaturesTargets():
 
     def __init__(self, california_housing_dataframe):
-        self.examples = self.preprocess_features(california_housing_dataframe)
+        self.features = self.preprocess_features(california_housing_dataframe)
         self.targets = self.preprocess_targets(california_housing_dataframe)
         self.target_series = self.targets['median_house_value']
 
@@ -108,7 +108,7 @@ def my_input_fn(features_targets, batch_size=1, shuffle=True, num_epochs=None):
     Trains a linear regression model of one feature
 
     Args:
-        features_targets: ExampleTargets of features and targets
+        features_targets: FeaturesTargets of features and targets
         batch_size: size of batches to be passed to the model
         shuffle: whether to shuffle the data.
         num_epochs: Number of epochs for which data should be repeated.  None is
@@ -117,7 +117,7 @@ def my_input_fn(features_targets, batch_size=1, shuffle=True, num_epochs=None):
         Tuple of (features, labels) for next data batch
     """
     # convert pandas data into dict of numpy arrays
-    features = {key: np.array(value) for key, value in dict(features_targets.examples).items()}
+    features = {key: np.array(value) for key, value in dict(features_targets.features).items()}
 
     # construct a dataset and configure batch/repeating
     ds = Dataset.from_tensor_slices((features, features_targets.target_series))
@@ -166,12 +166,12 @@ def train_model(
         steps: non-zero `int`, total number of training steps. A training step
                consists of a forward and backward pass using a single batch.
         batch_size: non-zero `int`, the batch size.
-        training_data: An `ExampleTargets` containing a `DataFrame` containing
+        training_data: An `FeaturesTargets` containing a `DataFrame` containing
             one or more columns from `california_housing_dataframe` to use as
             input features for training, and a `DataFrame` containing exactly
             one column from `california_housing_dataframe` to use as target for
             training.
-        validation_data: An `ExampleTargets` containing a `DataFrame` containing
+        validation_data: An `FeaturesTargets` containing a `DataFrame` containing
             one or more columns from `california_housing_dataframe` to use as
             input features for validation, and a `DataFrame` containing exactly
             one column from `california_housing_dataframe` to use as target for
@@ -183,7 +183,7 @@ def train_model(
     periods = 10
     steps_per_period = steps // periods
 
-    linear_regressor = get_linear_regressor(learning_rate, training_data.examples)
+    linear_regressor = get_linear_regressor(learning_rate, training_data.features)
     train_input_fn = training_data.get_training_fn(batch_size)
 
     print('Training model')
@@ -205,19 +205,19 @@ def train_model(
 
 def evaluate_against_test_data(linear_regressor):
     california_housing_test_data = get_test_dataset()
-    test_data = ExampleTargets(california_housing_test_data)
+    test_data = FeaturesTargets(california_housing_test_data)
     test_rmse = test_data.get_prediction_rmse(linear_regressor)
     print('Test RMSE is {:0.2f}'.format(test_rmse))
 
 
-def plot_single_lat_long(ax, examples, targets):
+def plot_single_lat_long(ax, features, targets):
     ax.set_autoscaley_on(False)
     ax.set_ylim([32, 43])
     ax.set_autoscalex_on(False)
     ax.set_xlim([-126, -112])
     plt.scatter(
-        examples["longitude"],
-        examples["latitude"],
+        features["longitude"],
+        features["latitude"],
         cmap="coolwarm",
         c=targets["median_house_value"] / targets["median_house_value"].max()
     )
@@ -228,11 +228,11 @@ def plot_lat_long(validation_data, training_data):
 
     ax = plt.subplot(1, 2, 1)
     ax.set_title("Validation Data")
-    plot_single_lat_long(ax, validation_data.examples, validation_data.targets)
+    plot_single_lat_long(ax, validation_data.features, validation_data.targets)
 
     ax = plt.subplot(1, 2, 2)
     ax.set_title("Training Data")
-    plot_single_lat_long(ax, training_data.examples, training_data.targets)
+    plot_single_lat_long(ax, training_data.features, training_data.targets)
 
     plt.plot()
     plt.show()
@@ -252,8 +252,8 @@ def plot_rmse(training_rmse, validation_rmse):
 
 def main():
     california_housing_dataframe = get_training_dataset()
-    training_data = ExampleTargets(california_housing_dataframe.head(12000))
-    validation_data = ExampleTargets(california_housing_dataframe.tail(5000))
+    training_data = FeaturesTargets(california_housing_dataframe.head(12000))
+    validation_data = FeaturesTargets(california_housing_dataframe.tail(5000))
     # plot_lat_long(validation_data, training_data)
     linear_regressor = train_model(
         # TWEAK THESE VALUES TO SEE HOW MUCH YOU CAN IMPROVE THE RMSE

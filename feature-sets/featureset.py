@@ -35,7 +35,7 @@ def construct_feature_columns(input_features):
     return set([tf.feature_column.numeric_column(f) for f in input_features])
 
 
-class ExampleTargets():
+class FeaturesTargets():
     default_features = [
         "latitude",
         "longitude",
@@ -53,7 +53,7 @@ class ExampleTargets():
     def __init__(self, california_housing_dataframe, feature_list=None, synthetics=None):
         self.feature_list = feature_list or self.default_features
         self.synthetics = synthetics if synthetics is not None else self.default_synthetic_features
-        self.examples = self.preprocess_features(california_housing_dataframe)
+        self.features = self.preprocess_features(california_housing_dataframe)
         self.targets = self.preprocess_targets(california_housing_dataframe)
         self.target_series = self.targets['median_house_value']
 
@@ -140,7 +140,7 @@ def my_input_fn(features_targets, batch_size=1, shuffle=True, num_epochs=None):
     Trains a linear regression model of one feature
 
     Args:
-        features_targets: ExampleTargets of features and targets
+        features_targets: FeaturesTargets of features and targets
         batch_size: size of batches to be passed to the model
         shuffle: whether to shuffle the data.
         num_epochs: Number of epochs for which data should be repeated.  None is
@@ -149,7 +149,7 @@ def my_input_fn(features_targets, batch_size=1, shuffle=True, num_epochs=None):
         Tuple of (features, labels) for next data batch
     """
     # convert pandas data into dict of numpy arrays
-    features = {key: np.array(value) for key, value in dict(features_targets.examples).items()}
+    features = {key: np.array(value) for key, value in dict(features_targets.features).items()}
 
     # construct a dataset and configure batch/repeating
     ds = Dataset.from_tensor_slices((features, features_targets.target_series))
@@ -186,12 +186,12 @@ def train_model(
         steps: non-zero `int`, total number of training steps. A training step
                consists of a forward and backward pass using a single batch.
         batch_size: non-zero `int`, the batch size.
-        training_data: An `ExampleTargets` containing a `DataFrame` containing
+        training_data: An `FeaturesTargets` containing a `DataFrame` containing
             one or more columns from `california_housing_dataframe` to use as
             input features for training, and a `DataFrame` containing exactly
             one column from `california_housing_dataframe` to use as target for
             training.
-        validation_data: An `ExampleTargets` containing a `DataFrame` containing
+        validation_data: An `FeaturesTargets` containing a `DataFrame` containing
             one or more columns from `california_housing_dataframe` to use as
             input features for validation, and a `DataFrame` containing exactly
             one column from `california_housing_dataframe` to use as target for
@@ -203,7 +203,7 @@ def train_model(
     periods = 10
     steps_per_period = steps // periods
 
-    linear_regressor = get_linear_regressor(learning_rate, training_data.examples)
+    linear_regressor = get_linear_regressor(learning_rate, training_data.features)
     train_input_fn = training_data.get_training_fn(batch_size)
 
     print('Training model')
@@ -224,7 +224,7 @@ def train_model(
 
 
 def correlation_report(training_data):
-    correlation_dataframe = training_data.examples.copy()
+    correlation_dataframe = training_data.features.copy()
     correlation_dataframe["target"] = training_data.target_series
     print(correlation_dataframe.corr())
 
@@ -245,9 +245,9 @@ def main():
     california_housing_dataframe = create_dataset()
     minimal_features = ['median_income']
     synthetics = ['rooms_per_person', 'latitude_buckets']
-    training_data = ExampleTargets(california_housing_dataframe.head(12000), minimal_features, synthetics)
-    print(training_data.examples.describe())
-    validation_data = ExampleTargets(california_housing_dataframe.tail(5000), minimal_features, synthetics)
+    training_data = FeaturesTargets(california_housing_dataframe.head(12000), minimal_features, synthetics)
+    print(training_data.features.describe())
+    validation_data = FeaturesTargets(california_housing_dataframe.tail(5000), minimal_features, synthetics)
     # correlation_report(training_data)
     train_model(
         learning_rate=0.03,
